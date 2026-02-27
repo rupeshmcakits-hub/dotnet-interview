@@ -1,49 +1,54 @@
-using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using TodoApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Configure services
+ConfigureServices(builder.Services);
 
 var app = builder.Build();
 
-InitializeDatabase();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Initialize database with error handling
+try
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    InitializeDatabase(app);
+}
+catch (Exception ex)
+{
+    // Log the exception (replace with actual logging)
+    Console.WriteLine($"Database initialization failed: {ex.Message}");
 }
 
-app.UseHttpsRedirection();
-
-app.UseAuthorization();
-
-app.MapControllers();
+// Configure middleware and endpoints
+ConfigureMiddleware(app);
 
 app.Run();
 
-void InitializeDatabase()
+void ConfigureServices(IServiceCollection services)
 {
-    var connectionString = "Data Source=todos.db";
-    using var connection = new SqliteConnection(connectionString);
-    connection.Open();
+    services.AddControllers();
+    services.AddEndpointsApiExplorer();
+    services.AddSwaggerGen();
+    services.AddDbContext<TodoContext>(options =>
+        options.UseSqlServer(builder.Configuration.GetConnectionString("TodoContext")));
+}
 
-    var command = connection.CreateCommand();
-    command.CommandText = @"
-        CREATE TABLE IF NOT EXISTS Todos (
-            Id INTEGER PRIMARY KEY AUTOINCREMENT,
-            Title TEXT NOT NULL,
-            Description TEXT,
-            IsCompleted INTEGER NOT NULL DEFAULT 0,
-            CreatedAt TEXT NOT NULL
-        )
-    ";
-    command.ExecuteNonQuery();
+void ConfigureMiddleware(WebApplication app)
+{
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
 
-    Console.WriteLine("Database initialized successfully");
+    app.UseHttpsRedirection();
+    app.UseAuthorization();
+    app.MapControllers();
+}
+
+void InitializeDatabase(WebApplication app)
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<TodoContext>();
+    db.Database.EnsureCreated();
 }
