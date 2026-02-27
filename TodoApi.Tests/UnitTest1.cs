@@ -1,95 +1,81 @@
-using Xunit;
-using TodoApi.Services;
-using TodoApi.Models;
-using TodoApi.Controllers;
 using Microsoft.AspNetCore.Mvc;
+using TodoApi.Models;
+using TodoApi.Services;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
-namespace TodoApi.Tests;
-
-public class UnitTest1
+namespace TodoApi.Controllers
 {
-    [Fact]
-    public void Test1()
+    [ApiController]
+    [Route("api/[controller]")]
+    public class TodoController : ControllerBase
     {
-        var service = new TodoService();
-        Assert.True(true);
-    }
+        private readonly ITodoService _todoService;
 
-    [Fact]
-    public void TestCreateTodo()
-    {
-        var service = new TodoService();
-        var todo = new Todo
+        // Constructor with dependency injection of service
+        public TodoController(ITodoService todoService)
         {
-            Title = "Test",
-            Description = "Test Description",
-            IsCompleted = false
-        };
+            _todoService = todoService;
+        }
 
-        var result = service.CreateTodo(todo);
-
-        Assert.NotNull(result);
-        Assert.True(result.Id > 0);
-    }
-
-    [Fact]
-    public void TestGetTodo()
-    {
-        var service = new TodoService();
-        var todos = service.GetAllTodos();
-
-        Assert.True(todos.Count > 0);
-    }
-
-    [Fact]
-    public void UpdateTest()
-    {
-        var service = new TodoService();
-        var todo = new Todo
+        // GET: api/todo
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<TodoItem>>> GetTodos()
         {
-            Title = "Updated",
-            Description = "Updated Description",
-            IsCompleted = true
-        };
+            var todos = await _todoService.GetAllTodosAsync();
+            return Ok(todos);
+        }
 
-        var result = service.UpdateTodo(1, todo);
-        Assert.NotNull(result);
-    }
+        // GET: api/todo/{id}
+        [HttpGet("{id}")]
+        public async Task<ActionResult<TodoItem>> GetTodoById(int id)
+        {
+            var todo = await _todoService.GetTodoByIdAsync(id);
+            if (todo == null)
+            {
+                return NotFound();
+            }
+            return Ok(todo);
+        }
 
-    [Fact]
-    public void DeleteWorks()
-    {
-        var service = new TodoService();
-        var result = service.DeleteTodo(999);
+        // POST: api/todo
+        [HttpPost]
+        public async Task<ActionResult<TodoItem>> CreateTodo([FromBody] TodoItem todoItem)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+            var createdTodo = await _todoService.CreateTodoAsync(todoItem);
+            return CreatedAtAction(nameof(GetTodoById), new { id = createdTodo.Id }, createdTodo);
+        }
 
-        Assert.False(result);
-    }
+        // PUT: api/todo/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateTodo(int id, [FromBody] TodoItem todoItem)
+        {
+            if (id != todoItem.Id)
+            {
+                return BadRequest("ID mismatch");
+            }
+            var updated = await _todoService.UpdateTodoAsync(todoItem);
+            if (!updated)
+            {
+                return NotFound();
+            }
+            return NoContent();
+        }
 
-    [Fact]
-    public void ControllerTest()
-    {
-        var controller = new TodoController();
-        var todo = new Todo { Title = "Test", Description = "Desc" };
-
-        var result = controller.CreateTodo(todo);
-
-        Assert.NotNull(result);
-    }
-
-    [Fact]
-    public void TestEverything()
-    {
-        var service = new TodoService();
-
-        var todo1 = service.CreateTodo(new Todo { Title = "1", Description = "D1" });
-        var todo2 = service.CreateTodo(new Todo { Title = "2", Description = "D2" });
-
-        var all = service.GetAllTodos();
-
-        service.UpdateTodo(todo1.Id, new Todo { Title = "Updated", Description = "D1" });
-
-        service.DeleteTodo(todo2.Id);
-
-        Assert.True(all.Count >= 2);
+        // DELETE: api/todo/{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteTodo(int id)
+        {
+            var deleted = await _todoService.DeleteTodoAsync(id);
+            if (!deleted)
+            {
+                return NotFound();
+            }
+            return NoContent();
+        }
     }
 }
